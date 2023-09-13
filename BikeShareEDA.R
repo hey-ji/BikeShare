@@ -7,10 +7,11 @@ library(tidyverse)
 library(vroom)
 library(DataExplorer)
 library(GGally)
+library(patchwork)
 
 ## Read in the Data
 setwd("/Users/student/Desktop/STAT348")
-bike <- vroom("KaggleBikeShare/train.csv")
+bike <- vroom("BikeShare/train.csv")
 bike
 
 ## Perform an EDA and identify key features
@@ -29,25 +30,36 @@ bike$weather <- factor(bike$weather, levels=c(1,2,3,4), labels=c("Clear", "Cloud
 bike$season <- factor(bike$season, levels=c(1,2,3,4), labels=c("spring","summer","fall","winter"))
 
 #1. weather plot
-ggplot(data=bike, mapping=aes(x=weather, y=count)) +
+plot1 <- ggplot(data=bike, mapping=aes(x=weather, y=count)) +
   geom_boxplot() +
   xlab("weather")
 
 ggplot(data=bike, aes(x=count, color=weather)) + geom_histogram()
 
 #2. season plot
-ggplot(data=bike, mapping=aes(x=season, y=count)) +
+plot2 <- ggplot(data=bike, mapping=aes(x=season, y=count)) +
   geom_boxplot() +
   xlab("season")
 
 #3. atemp plot ("feels like" temperature in Celsius)
-ggplot(data=bike, mapping=aes(x=atemp, y=count)) +
+plot3 <- ggplot(data=bike, mapping=aes(x=atemp, y=count)) +
   geom_point() +
   geom_smooth(se=FALSE) +
   xlab("feels like temperature in Celsius")
 
 #4. windspeed plot
-ggplot(data=bike, mapping=aes(x=windspeed, y=count)) +
+plot4 <- ggplot(data=bike, mapping=aes(x=windspeed, y=count)) +
   geom_point() +
   geom_smooth(se=FALSE) +
   xlab("wind speed")
+
+(plot1 + plot2) / (plot3 + plot4)
+
+
+
+
+
+
+
+
+
