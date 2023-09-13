@@ -18,8 +18,6 @@ bike %>%
 View(bike)
 
 
-
-
 ## engineering
 # change to factors 
 # create time of day variable
