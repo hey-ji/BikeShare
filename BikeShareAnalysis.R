@@ -544,3 +544,86 @@ bike_predictions <- bike_predictions %>%
   rename(count=.pred) %>%
   select(datetime, count)
 vroom_write(x=bike_predictions, file="BikeShare/bikepredsLastSubmission2.csv", delim=",")
+
+# Xgboost model -----------------------------------------------------------
+install.packages("xgboost")
+library(tidymodels)
+library(xgboost)
+library(vroom)
+library(tidyverse)
+
+
+#1. read in the data
+setwd("/Users/student/Desktop/STAT348")
+bike_training <- vroom("BikeShare/train.csv") %>%
+  select(-casual, -registered)
+bike_test <- vroom("BikeShare/test.csv")
+bike_training$count <- log(bike_training$count) # change a response variable into log scale
+
+#2. create a recipe
+my_recipe <- recipe(count~., data = bike_training) %>%
+  step_mutate(weather=ifelse(weather==4, 3, weather)) %>%
+  step_mutate(weather=factor(weather)) %>%
+  step_time(datetime, features = "hour") %>%
+  step_date(datetime, features = "year") %>%
+  step_mutate(datetime_hour=factor(datetime_hour)) %>%
+  step_mutate(datetime_year=factor(datetime_year)) %>%
+  step_num2factor(season, levels=c("spring", "summer", "fall", "winter")) %>%
+  step_rm(datetime) %>%
+  step_dummy(all_nominal_predictors()) %>%
+  step_normalize(all_numeric_predictors())
+
+prepped_recipe <- prep(my_recipe)  # Sets up the preprocessing using myDataS
+bake(prepped_recipe, new_data=bike_training)
+bake(prepped_recipe, new_data=bike_test)
+
+# Define the XGBoost model
+my_xgb_mod <- boost_tree(
+  mtry = tune(),
+  trees = tune(),
+  min_n = tune()
+) %>%
+  set_engine("xgboost") %>%
+  set_mode("regression")
+
+# Create a workflow with the XGBoost model & recipe
+xgb_wf <- workflow() %>%
+  add_recipe(my_recipe) %>%
+  add_model(my_xgb_mod)
+
+# Set up grid of tuning values for XGBoost
+tuning_xgb_grid <- grid_random(
+  mtry(range = c(1, ncol(bike_training)-1)),
+  trees(range = c(100, 1000)),
+  min_n(range = c(1, 10)),
+  size = 5
+)
+
+# Tune the XGBoost model
+CV_results <- xgb_wf %>%
+  tune_grid(
+    resamples = folds,
+    grid = tuning_xgb_grid,
+    metrics = metric_set(rmse)
+  )
+
+# Find the best tuning parameters for XGBoost
+bestTune <- CV_results %>%
+  select_best("rmse")
+
+# Finalize the XGBoost workflow and fit the model
+final_xgb_wf <- xgb_wf %>%
+  finalize_workflow(bestTune) %>%
+  fit(data = bike_training)
+
+# Make predictions with the final XGBoost model
+bike_predictions <- predict(final_xgb_wf, new_data = bike_test) %>%
+  mutate(count = exp(.pred))
+
+# Formatting for submission
+bike_predictions$datetime <- as.character(format(bike_test$datetime))
+bike_predictions <- bike_predictions %>%
+  select(datetime, count)
+vroom_write(x = bike_predictions, file = "BikeShare/bikepredsXGBoost.csv", delim = ",")
+
+setwd("/Users/student/Desktop/STAT348/BikeShare")
